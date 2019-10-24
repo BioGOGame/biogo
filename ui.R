@@ -137,13 +137,46 @@ ui <- miniPage(
            # VIEW DATATABLES
            condition = "output.role == 0",
            selectInput("select_view", label = "Choose view", 
-                       choices = c("Correction interface" = 1,
+                       choices = c("Dashboard" = 0,
+                                    "Correction interface" = 1,
                                    "Table view" = 2,
                                    "Admin" = 3)),
            # materialSwitch(inputId = "show_correction",
            #                label = "Show correction interface",
            #                status = "success", right = TRUE, value = FALSE),
            tags$hr(),
+           
+           
+           # DASHBOARD
+           conditionalPanel(
+             condition = "input.select_view == 0",
+             box(
+               tags$h3("Submitted quests"),
+               plotOutput("dashQuests")
+  
+             ),
+             
+             box(
+               tags$h3("Corrections"),
+               plotOutput("dashCorrections")
+               
+             ) , 
+             
+             box(
+               tags$h3("Bounty storage"),
+               plotOutput("dashSubmissions")
+               
+             ), 
+             box(
+               tags$h3("Connections"),
+               plotOutput("dashConnections")
+               
+             )
+             
+           ),
+           
+           
+           # VIEW DATA
            conditionalPanel(
              condition = "input.select_view == 2",
              selectInput("select_table", label = "Choose table", choices = c(1,2)),

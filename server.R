@@ -134,7 +134,7 @@ shinyServer(function(input, output, clientData, session) {
   #-------------------------
   # LOGIN WITH MODAL DIALOGS
   #-------------------------
-  observe(modalLogin())
+  # observe(modalLogin())
   
   modalLogin <- function(){
     showModal(modalDialog(
@@ -1055,6 +1055,88 @@ shinyServer(function(input, output, clientData, session) {
   })
   
   
+  #-------------------------
+  # PLOT DASHBOARD DATA
+  #-------------------------
+  
+  output$dashQuests <- renderPlot({
+    temp <- merge(dbReadTable(con, "bounties"), dbReadTable(con, "quests"), 
+                  by.x="id_quest", by.y = "id")
+    
+    count.data <- ddply(temp, .(difficulty), summarise, prop=length(difficulty))
+    count.data <- count.data %>%
+      arrange(desc(difficulty)) %>%
+      mutate(lab.ypos = cumsum(prop) - 0.5*prop)
+    mycols <- c( "#CD534CFF", "#EFC000FF", "#0073C2FF", "#65ac54")
+    
+    ggplot(count.data, aes(x = 2, y = prop, fill = difficulty)) +
+      geom_bar(width = 1, stat = "identity", color = "white") +
+      coord_polar("y", start = 0)+
+      geom_text(aes(y = lab.ypos, label = prop), color = "white", size=10)+
+      scale_fill_manual(values = mycols) +
+      theme_void() +
+      theme(text = element_text(size=6),
+            legend.text = element_text(size=10),
+            legend.title = element_text(size=10)) + 
+      xlim(0.5, 2.5)
+
+  })
+  
+  output$dashCorrections <- renderPlot({
+    temp <- merge(dbReadTable(con, "bounties"), dbReadTable(con, "quests"), 
+                  by.x="id_quest", by.y = "id") %>% 
+      mutate(corr = ifelse(validated <= 0, "false", "correct")) %>% 
+      mutate(corr = ifelse(validated == -1, "wating", corr))
+    
+    count.data <- ddply(temp, .(corr), summarise, prop=length(corr))
+    count.data <- count.data %>%
+      arrange(desc(corr)) %>%
+      mutate(lab.ypos = cumsum(prop) - 0.5*prop)
+    
+    mycols <- c( "#CD534CFF", "#EFC000FF", "#0073C2FF", "#65ac54")
+    
+    ggplot(count.data, aes(x = 2, y = prop, fill = corr)) +
+      geom_bar(width = 1, stat = "identity", color = "white") +
+      coord_polar("y", start = 0)+
+      geom_text(aes(y = lab.ypos, label = prop), color = "white", size=10)+
+      scale_fill_manual(values = mycols) +
+      theme_void() +
+      theme(text = element_text(size=6),
+            legend.text = element_text(size=10),
+            legend.title = element_text(size=10)) + 
+      xlim(0.5, 2.5)
+    
+  })
+  
+  
+  output$dashSubmissions <- renderPlot({
+    temp <- dbReadTable(con, "bounties") %>% 
+      filter(date_stored != "string") %>% 
+      mutate(date = ymd(date_stored))
+    count.data <- ddply(temp, .(date), summarise, prop=length(date))
+    ggplot(count.data, aes(ymd(date), prop)) + 
+      geom_bar(stat = "identity")+
+      xlab("Date") +
+      ylab("Number of stored bounties")
+                  
+                  
+  })
+  
+  
+  
+  output$dashConnections <- renderPlot({
+    temp <- dbReadTable(con, "log") %>% 
+      filter(datetime != "test") %>% 
+      mutate(date = ymd(substr(datetime, 0, 10)))
+    count.data <- ddply(temp, .(date), summarise, prop=length(date))
+    ggplot(count.data, aes(ymd(date), prop)) + 
+      geom_bar(stat = "identity")+
+      xlab("Date") +
+      ylab("Number of connections")
+    
+    
+    
+  })
   
   
 })

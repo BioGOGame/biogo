@@ -47,7 +47,7 @@ library(digest)
 library(lubridate)
 library(stringi)
 library(sp)
-
+library(cowplot)
 source('src/lightbox.R')
 source('src/photoswipe.R')
 
