@@ -1,0 +1,12 @@
+name: biogo_v2
+title: biogo_v2
+username:
+account: plantmodelling
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 980968
+bundleId: 2524054
+url: https://plantmodelling.shinyapps.io/biogo_v2/
+when: 1571736087.59578
+asMultiple: FALSE
+asStatic: FALSE
