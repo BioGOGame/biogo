@@ -6,28 +6,23 @@
 # 
 # Developers: Guillaume Lobet
 # 
-# Redistribution and use in source and binary forms, with or without modification, are permitted under the GNU General Public License v3 and provided that the following conditions are met:
-#   
-#   1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 # 
-# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# http://www.apache.org/licenses/LICENSE-2.0
 # 
-# 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-# 
-# Disclaimer
-# 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-# You should have received the GNU GENERAL PUBLIC LICENSE v3 with this file in license.txt but can also be found at http://www.gnu.org/licenses/gpl-3.0.en.html
-# 
-# NOTE: The GPL.v3 license requires that all derivative work is distributed under the same license. That means that if you use this source code in any other program, you can only distribute that program with the full source code included and licensed under a GPL license.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 
 
-
+# LOAD ALL REQUIRED LIBRARIES
 library(shiny)
 library(shinyWidgets)
-# library(shinyalert)
 library(shinyBS)
 library(shinymaterial)
 library(miniUI)
@@ -52,37 +47,33 @@ source('src/lightbox.R')
 source('src/photoswipe.R')
 
 
-# REQUIREMENTS
-req_animal <- 5
-req_vegetal <- 5
-req_zones <- 2
-req_bounties <- 20
-
-# library(semantic.dashboard)
-theme_col <- "black"
-
-help_store <- "When you store a picture, it become available for your whole group. It can then be submitted as a bounty for the current week"
-
-help_submit <- "When you submit a picture, it means you are formaly sending this picture for evaluation, adding it to your active bounty, for the week in progress. This action cannot be undone"
-
+# LOAD NEEDED TABLE FROM SQLITE DATABASE AND PROCESS THEM
+# INTO USABLE INFORMATION
 
 # Get the tables from the database
+all_tables  <- dbListTables(con)
 con <- dbConnect(RSQLite::SQLite(), "www/database.sql")
 all_quests  <- dbReadTable(con, "quests")
 all_zones  <- dbReadTable(con, "zones")
 all_zones_delim  <- dbReadTable(con, "zones_delim")
 all_groups  <- dbReadTable(con, "groups")
 all_users  <- dbReadTable(con, "users")
+all_logs  <- dbReadTable(con, "log")
+all_params  <- dbReadTable(con, "params")
 all_bounties  <- dbReadTable(con, "bounties") %>% 
   filter(date != 'string')
 planning <- dbReadTable(con, "planning") %>% 
-  filter(date != "hello")   #%>% 
-  # mutate(date = as.Date(date))
+  filter(date != "hello")
 
+# Create a list with all the zones 
 zone_list <- split(all_zones$id, all_zones$name)
 
+# Create a list with all the tables structures 
+# This is used when uplodaing data to a table, to check
+# consistency in format
 tables_str <- list(all_bounties = colnames(all_bounties),
                    all_groups = colnames(all_groups),
+                   log = colnames(all_logs),
                    planning = colnames(planning),
                    all_quests = colnames(all_quests),
                    all_users = colnames(all_users),
@@ -90,19 +81,35 @@ tables_str <- list(all_bounties = colnames(all_bounties),
                    all_zones_delim = colnames(all_zones_delim)
                  )
 
-all_tables  <- dbListTables(con)
+
+
+# GAME PARAMETERS. CAN BE CHANGE IN THE INTERFACE
+req_bounties <- all_params$value[all_params$param == "req_bounties"] # min number of bounties
+req_types <- all_params$value[all_params$param == "req_types"] # min number of each bounties type
+req_zones <- all_params$value[all_params$param == "req_zones"] # min number of zones to visit
+req_out_zones <- all_params$value[all_params$param == "req_out_zones"] # min number of zones to visit
+max_found_quest <- all_params$value[all_params$param == "max_found_quest"] # min number of zones to visit
 
 
 
-current_week <- planning$week[planning$date == Sys.Date()]
 
 
 # GET IMAGE FROM PREVIOUS YEAR
-
+# This is used i the correction terface, to compare the current images
+# With validated onces. 
 all_corr <- read_csv("www/data_corr/all_corrections.csv") %>% 
   select(img, check) %>% 
   mutate(quest_id = str_split_fixed(img, "_", 3)[,1])
 
 
+# OTHERS
+# Color scale for dashboard plots
+mycols <- c( "#CD534CFF", "#EFC000FF", "#0073C2FF", "#65ac54")
 
 
+# Help texts for the interface
+help_store <- "When you store a picture, it become available for your whole group. It can then be submitted as a bounty"
+
+help_submit <- "When you submit a picture, it means you are formaly sending this picture for evaluation, adding it to your active bounty. This action cannot be undone"
+
+help_bounty <- "Here you can see all your bounties, submitted or not, as well as their current evaluation status. You can also see here the ranking of all the groups. "

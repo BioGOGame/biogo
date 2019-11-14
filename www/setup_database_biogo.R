@@ -6,29 +6,22 @@
 # 
 # Developers: Guillaume Lobet
 # 
-# Redistribution and use in source and binary forms, with or without modification, are permitted under the GNU General Public License v3 and provided that the following conditions are met:
-#   
-#   1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 # 
-# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# http://www.apache.org/licenses/LICENSE-2.0
 # 
-# 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-# 
-# Disclaimer
-# 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-# You should have received the GNU GENERAL PUBLIC LICENSE v3 with this file in license.txt but can also be found at http://www.gnu.org/licenses/gpl-3.0.en.html
-# 
-# NOTE: The GPL.v3 license requires that all derivative work is distributed under the same license. That means that if you use this source code in any other program, you can only distribute that program with the full source code included and licensed under a GPL license.
-
-# The aim of this script is to create the database for the game BioGO
-
-# install.packages("googlesheets")
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 
 
-# REQUIED LIBRARIES 
+
+# REQURIED LIBRARIES 
 library(RSQLite)
 library(DBI)
 library(googlesheets)
@@ -42,25 +35,13 @@ library(rjson)
 con <- dbConnect(RSQLite::SQLite(), "www/database.sql")
 dbListTables(con)
 
+ti <- gs_title("biogo_setup")
 
 #--------------------------------------------------
 # QUEST TABLE
 # Get the list of quests from google sheet
 
-  ti <- gs_title("LBIR1151 - Questions ")
-  
-  # vegetal quests
-  veg <- gs_read(ti, ws = 1) %>% 
-    mutate(type = "végétal")
-  
-  # animal quests
-  ani <- gs_read(ti, ws = 2) %>% 
-    mutate(id = id+max(veg$id),
-           type = "animal")
-  
-  quests <- rbind(veg, ani) %>% 
-    mutate(status = "active")
-  
+  quests <- gs_read(ti, ws = 1) 
   dbWriteTable(con, "quests", quests, overwrite = TRUE)
 
   
@@ -70,8 +51,7 @@ dbListTables(con)
   
   zones_raw <- fromJSON(file = "www/maps/map_small.json")[[2]]
   zones_delim <- NULL
-  ti <- gs_title("LBIR1151 - Questions ")
-  zones <-  gs_read(ti, ws = 3)
+  zones <-  gs_read(ti, ws = 2)
   
   for( i in c(1:length(zones_raw))){
     temp <- data.frame(matrix(unlist(zones_raw[[i]][[3]][2]), ncol=2, byrow=T))
@@ -85,7 +65,7 @@ dbListTables(con)
                                     zone_id = zones$id[i]))
   }
   dbWriteTable(con, "zones", zones, overwrite = TRUE)
-  dbWriteTable(con, "zones_delim", zones_delim)
+  dbWriteTable(con, "zones_delim", zones_delim, overwrite = TRUE)
 
   
   
@@ -93,24 +73,21 @@ dbListTables(con)
 # GROUPS TABLE
 # Get the list of groups from google sheet
   
-  ti <- gs_title("LBIR1151 - Questions ")
-  groups <- gs_read(ti, ws = 4) 
+  groups <- gs_read(ti, ws = 3) 
   dbWriteTable(con, "groups", groups, overwrite = TRUE)  
   
 #--------------------------------------------------
 # USER TABLE
 # Get the list of users from google sheet
   
-  ti <- gs_title("LBIR1151 - Questions ")
-  users <- gs_read(ti, ws = 5) 
+  users <- gs_read(ti, ws = 4) 
   dbWriteTable(con, "users", users, overwrite = TRUE)
   
 #--------------------------------------------------
 # BOUNTIES TABLE
 # Get the list of bounties from google sheet
   
-  ti <- gs_title("LBIR1151 - Questions ")
-  bounties <- gs_read(ti, ws = 6) 
+  bounties <- gs_read(ti, ws = 5) 
   dbWriteTable(con, "bounties", bounties, overwrite = TRUE)    
   
   
@@ -118,8 +95,7 @@ dbListTables(con)
 # PLANNING TABLE
 # Get the planning of the game
   
-  ti <- gs_title("LBIR1151 - Questions ")
-  planning <- gs_read(ti, ws = 7) 
+  planning <- gs_read(ti, ws = 6) 
   dbWriteTable(con, "planning", planning, overwrite = TRUE)    
   
   
@@ -130,9 +106,17 @@ dbListTables(con)
 # LOG TABLE
 # get user logging history
   
-  ti <- gs_title("LBIR1151 - Questions ")
-  log <- gs_read(ti, ws = 8) 
+  log <- gs_read(ti, ws = 7) 
   dbWriteTable(con, "log", log, overwrite = TRUE)    
+  
+  
+  
+  #--------------------------------------------------
+  # PARAM TABLE
+  # get user logging history
+  
+  params <- gs_read(ti, ws = 8) 
+  dbWriteTable(con, "params", params, overwrite = TRUE)    
   
   
 

@@ -6,22 +6,17 @@
 # 
 # Developers: Guillaume Lobet
 # 
-# Redistribution and use in source and binary forms, with or without modification, are permitted under the GNU General Public License v3 and provided that the following conditions are met:
-#   
-#   1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 # 
-# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# http://www.apache.org/licenses/LICENSE-2.0
 # 
-# 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-# 
-# Disclaimer
-# 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-# You should have received the GNU GENERAL PUBLIC LICENSE v3 with this file in license.txt but can also be found at http://www.gnu.org/licenses/gpl-3.0.en.html
-# 
-# NOTE: The GPL.v3 license requires that all derivative work is distributed under the same license. That means that if you use this source code in any other program, you can only distribute that program with the full source code included and licensed under a GPL license.
-
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 ui <- miniPage(
   gadgetTitleBar(img(src='biogo_logo_transp_xs.png'),  
@@ -41,15 +36,17 @@ ui <- miniPage(
   
   miniTabstripPanel(
     
-    
+    #----------------------------------------------------------------------------
     # STORE PANEL 
-    # This panel is for th storage, in the group's chess, individual pictures
+    # This panel is for the storage, in the group's chess, of individual bounties
+    #----------------------------------------------------------------------------
+    
     miniTabPanel("Store", icon = icon("image"),
       miniContentPanel(
         helpText(help_store),
+        tags$hr(),
         fileInput("file", label = "Needs to be a jpg file"),
         selectInput("store_quest", label = "Choose quest", choices = c(1,2)),
-        # selectInput("store_group", label = "Choose your group", choices = c(1,2)),
         selectInput("store_zone", label = "Choose zone", choices = c(1,2)),
         h3("Your image"),
         imageOutput("store_img", width="auto"),
@@ -63,40 +60,54 @@ ui <- miniPage(
     ),
     
     
+    #----------------------------------------------------------------------------
+    # SUBMIT PANEL 
+    # In this panel, users can choose on of their stored bounty and submit it for evaluation
+    # This action cannot be undone. 
+    #----------------------------------------------------------------------------
     
-    # SUBMIT
     miniTabPanel("Submit", icon = icon("check"),
        miniContentPanel(
           helpText(help_submit),
+          tags$hr(),
           selectInput("submit_img", label = "Choose a stored bounty", choices = c(1,2,3)),
           selectInput("submit_quest", label = "Choose quest", choices = c(1,2,3)),
           # selectInput("submit_group", label = "Choose group", choices = c(1,2,3)),
           selectInput("submit_zone", label = "Choose zone", choices = c(1,2,3)),
           imageOutput("submit_img", width="auto")
       ),
-      miniButtonBlock(actionButton("submit", 
-                                   label = "Submit bounty", 
-                                   icon("check"), 
-                                   style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),
-                      
-                      actionButton("delete", 
-                                   label = "Delete bounty", 
-                                   icon("trash-o"), 
-                                   style="color: #fff; background-color: #d83429; border-color: #98231b"),
-                      border = "top")
+      miniButtonBlock(
+        
+        # Button to submit the bounty for evaluation
+        actionButton("submit", 
+                     label = "Submit bounty", 
+                     icon("check"), 
+                     style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),
+        
+        # Button to delete a bounty from the user's chest
+        actionButton("delete", 
+                     label = "Delete bounty", 
+                     icon("trash-o"), 
+                     style="color: #fff; background-color: #d83429; border-color: #98231b"),
+        border = "top")
     ),
     
     
-    
+    #----------------------------------------------------------------------------
     # BOUNTY
+    # In this panel, users can see their own bounties, submitted or not
+    # together with their evaluation status. Users can also see the ranking of all the groups
+    #----------------------------------------------------------------------------
+    
     miniTabPanel("Bounty", icon = icon("star outline"),
       miniContentPanel(
+        helpText(help_bounty),
+        tags$hr(),
         materialSwitch(inputId = "show_all_bounties",
                        label = "Show all groups",
                        status = "success", right = TRUE, value = FALSE),
         conditionalPanel(
           condition = "input.show_all_bounties == true",
-          # h3("All groups' bounties"),
           tags$hr(),
           htmlOutput("summary_all_bounties"),
           tags$hr(),
@@ -107,15 +118,27 @@ ui <- miniPage(
           tags$hr(),
           htmlOutput("summary_group_bounties"),
           tags$hr(),
-          dataTableOutput("group_bounties")
+          dataTableOutput("group_bounties"), 
+          tags$hr(), 
+          imageOutput("bounty_img", width="auto") # Display the selected image
+          
         )
       )
     ),
 
+    #----------------------------------------------------------------------------
     # QUESTS /  ADMIN PANEL
+    # This panel changes if the users is a "player" or a "master"
+    # Player : list of all quests and zones
+    # Master : admin panel (dashboard, table view, table update, correction interface and game settings)
+    #----------------------------------------------------------------------------
+    
     miniTabPanel("Quests", icon = icon("list alternate outline"),
        miniContentPanel(
-         # QUESTS
+         
+         #--------------------------------
+         # QUESTS PANEL, if the user is a player
+         #--------------------------------
          conditionalPanel(
           condition = "output.role == 1",
             materialSwitch(inputId = "show_zones",
@@ -124,6 +147,12 @@ ui <- miniPage(
             tags$hr(),
             conditionalPanel(
               condition = "input.show_zones == false",
+              htmlOutput("summary_all_quests"),
+              tags$hr(),
+              materialSwitch(inputId = "show_inactive",
+                             label = "Show inactive quests",
+                             status = "success", right = TRUE, value = FALSE),
+              tags$hr(),
               dataTableOutput("all_quests")
             ),
             conditionalPanel(
@@ -132,61 +161,92 @@ ui <- miniPage(
             )
           ),
          
-         # ADMIN
+         # ADMIN PANEL, if the user is a master of a GOD
          conditionalPanel(
-           # VIEW DATATABLES
-           condition = "output.role == 0",
-           selectInput("select_view", label = "Choose view", 
-                       choices = c("Dashboard" = 0,
-                                    "Correction interface" = 1,
-                                   "Table view" = 2,
-                                   "Admin" = 3)),
-           # materialSwitch(inputId = "show_correction",
-           #                label = "Show correction interface",
-           #                status = "success", right = TRUE, value = FALSE),
+           condition = "output.role <= 0",
+           
+           # if user is master, then access to basic admin functions
+           # conditionalPanel(
+           #   condition = "output.role == 0", # if only master
+           #    selectInput("select_view", label = "Choose view", 
+           #             choices = c("Dashboard" = 0,
+           #                          "Correction interface" = 1,
+           #                          "View DB tables" = 2))
+           # ),
+           # # if the user is GOD, then access to higher admin functions
+           # conditionalPanel(
+           #   condition = "output.role == -1", # if GOD
+             selectInput("select_view", label = "Choose view", 
+                         choices = c("Dashboard" = 0,
+                                     "Correction interface" = 1,
+                                     "View DB tables" = 2,
+                                     "Update DB table" = 3,
+                                     "Game parameters" = 4)),
+           # ),
            tags$hr(),
            
            
-           # DASHBOARD
+           # DASHBOARD PANEL
+           # This is a panel showing synthetic data about the users 
            conditionalPanel(
              condition = "input.select_view == 0",
              box(
                tags$h3("Submitted quests"),
                plotOutput("dashQuests")
-  
              ),
              
              box(
                tags$h3("Corrections"),
                plotOutput("dashCorrections")
-               
              ) , 
              
              box(
                tags$h3("Bounty storage"),
                plotOutput("dashSubmissions")
-               
              ), 
+             
              box(
                tags$h3("Connections"),
                plotOutput("dashConnections")
-               
              )
+           ),
+           
+           
+           # GAME PARAMETERS
+           # update the parameters of the game
+           conditionalPanel(
+             condition = "input.select_view == 4",
+             helpText("Number of quests each group needs to collect during the game"),
+             sliderInput("req_bounties", "Number of needed quests", 0, 200, req_bounties),
+             helpText("Number of quests of each type each group needs to collect during the game"),
+             sliderInput("req_types", "Number of needed quests type", 0, req_bounties, req_types),
+             helpText("Number of zones each group needs to explore during the game"),
+             sliderInput("req_zones", "Number of needed zones", 0, 10, req_zones),
+             helpText("Maximum number of out-of-zone bounties allowed for each group"),
+             sliderInput("req_out_zones", "Maximum out-of-zone bounties ", 0, req_bounties, req_types),
+             helpText("Maximum number of time a single quest can be found. If a quest reach this limit, it will be listed as inactive"),
+             sliderInput("max_found_quest", "Maximum bounties for a quest ", 0, max_found_quest, req_types),
+             
+             miniButtonBlock(actionButton("update_params", label = "Update parameters", icon("cogs"), 
+                                          style="color: #fff; background-color: #337ab7; border-color: #2e6da4"),
+                             border = "top")
              
            ),
            
            
            # VIEW DATA
+           # View the data contained in the different tables of the database
            conditionalPanel(
              condition = "input.select_view == 2",
-             selectInput("select_table", label = "Choose table", choices = c(1,2)),
+             selectInput("select_table", label = "Choose table", choices = all_tables),
              downloadButton("download_table_data", "Download"),
-             tags$hr(),
              dataTableOutput("table_data")
              
            ),
-           # UPLOAD INTERFACE
            
+           # UPLOAD INTERFACE
+           # Allow the user (if GOD), to upload new data to a datatable 
+           # The cana can also be from a backup file
            conditionalPanel(
              condition = "input.select_view == 3",
              materialSwitch(inputId = "from_backup_file",
@@ -202,8 +262,9 @@ ui <- miniPage(
              ),
             
              tags$hr(),
+             
              dataTableOutput("input_table_data"),
-             selectInput("select_table_1", label = "Choose table to update", choices = c(1,2)),
+             selectInput("select_table_1", label = "Choose table to update", choices = all_tables),
              selectInput("append_data", label = "Choose action", 
                          choices = c("Override existing data" = 1,
                                      "Append data" = 2)),
@@ -216,6 +277,8 @@ ui <- miniPage(
            
            
            # CORRECTION INTERFACE
+           # Allow the masters to correct the bounties in the database.
+           # The bounties can be filter by type, status, etc.
            conditionalPanel(
              condition = "input.select_view == 1",
              fluidRow(
@@ -235,9 +298,6 @@ ui <- miniPage(
                                   "whatthefuck"=-3),
                                 multiple = T, selected = -1),
                     
-                    selectInput("correction_week", "Which week(s) to display?", c(1:4),
-                                multiple = T, selected = c(1:4)),
-                    
                     tags$hr(),
                     htmlOutput("to_do"),
                     htmlOutput("done")
@@ -246,7 +306,8 @@ ui <- miniPage(
                column(4,
                   actionButton("button_correct", "Correct", icon = icon("check"), 
                                style="color: #fff; background-color: #65ac54; border-color: #65ac54; "),
-                  actionButton("button_tocheck", "To keep", icon = icon("thumbs-o-up"),style="color: #fff; background-color: #65ac54; border-color: #65ac54; "),
+                  actionButton("button_tocheck", "To keep", icon = icon("thumbs-o-up"),
+                               style="color: #fff; background-color: #65ac54; border-color: #65ac54; "),
                   actionButton("button_false", "False", icon = icon("remove"), 
                                style="color: #fff; background-color: #d83429; border-color: #d83429"),
                   actionButton("button_flou", "Not visible", icon = icon("eye-slash"), 
@@ -259,8 +320,8 @@ ui <- miniPage(
                   
                   tags$hr(),
                   htmlOutput("img_title"),
-                  # imageOutput("myImage", width="100%"),   
-                  uiOutput('myImage'),
+                  imageOutput("myImage", width="100%"),   
+                  #uiOutput('myImage'),
                   tags$hr()
                   
                ),

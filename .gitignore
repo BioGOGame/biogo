@@ -2,3 +2,5 @@ www/img_corr/*
 www/img/*
 www/temp/*
 .Rproj*
+.httr-oauth
+.Rproj.user

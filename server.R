@@ -6,30 +6,25 @@
 # 
 # Developers: Guillaume Lobet
 # 
-# Redistribution and use in source and binary forms, with or without modification, are permitted under the GNU General Public License v3 and provided that the following conditions are met:
-#   
-#   1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 # 
-# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# http://www.apache.org/licenses/LICENSE-2.0
 # 
-# 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-# 
-# Disclaimer
-# 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-# You should have received the GNU GENERAL PUBLIC LICENSE v3 with this file in license.txt but can also be found at http://www.gnu.org/licenses/gpl-3.0.en.html
-# 
-# NOTE: The GPL.v3 license requires that all derivative work is distributed under the same license. That means that if you use this source code in any other program, you can only distribute that program with the full source code included and licensed under a GPL license.
-
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 library(shiny)
 
 shinyServer(function(input, output, clientData, session) {
   
   
-  rs <- reactiveValues(current_user = 7,
-                       current_role = "master",
+  rs <- reactiveValues(current_user = 1,
+                       current_role = "player",
                        current_group = 1,
                        current_group_name = NULL,
                        current_user_name = NULL,
@@ -40,7 +35,6 @@ shinyServer(function(input, output, clientData, session) {
                        active_bounties = NULL,
                        update = 1,
                        input_file = NULL, 
-                       current_week = 1, 
                        to_correct = NULL, 
                        current_img = NULL,
                        update_correction = 1,
@@ -49,99 +43,54 @@ shinyServer(function(input, output, clientData, session) {
   
   passw <- "test"
   usrname <- "test"
+  observe(modalLogin()) # If this is commented, not login is required to access the app
   
   
-  #-------------------------
+  
+  #--------------------------------------------------
   # UPDATE THE UI WITH CONTENT FROM THE DATABASE
-  #-------------------------
+  #--------------------------------------------------
   observe({
-    
-    rs$current_group_name <- all_groups$name[all_groups$id == rs$current_group]
-    rs$current_user_name <- all_users$name[all_users$id == rs$current_user]
-    
     req(input$submit_img)
     req(rs$update)
     
+    # Get the name of the current group of the user, based on the loggin information
+    rs$current_group_name <- all_groups$name[all_groups$id == rs$current_group] 
     
-    temp <- planning %>% 
-      filter(date == today())
-    rs$current_week <- temp$week
+    # Get the name of the current user, based on the loggin information
+    rs$current_user_name <- all_users$name[all_users$id == rs$current_user] 
     
-    active_quests <- all_quests %>%  filter(status == "active")
-    quest_list <- split(active_quests$id, active_quests$name)
+    # Get all the active boutines, from the current group
+    rs$active_bounties <- dbReadTable(con, "bounties") %>%  
+      filter(id_group == rs$current_group, submitted == 0) 
     
-    active_groups <- all_groups %>% filter(id != 0)
-    group_list <- split(active_groups$id, active_groups$name)
-    
-    rs$active_bounties <- dbReadTable(con, "bounties") %>%  filter(id_group == rs$current_group, submitted == 0) 
+  })
+  
 
-    temp <- merge(rs$active_bounties, all_quests, by.x = "id_quest", by.y = "id") %>% 
-      mutate(name = name.x, quest = name.y) %>% 
-      select(-c(name.y, name.x))
-    
-    temp <- merge(temp, all_zones, by.x = "id_zone", by.y = "id") %>% 
-      mutate(name = name.x, zone = name.y) %>% 
-      select(-c(name.y, name.x))
-    
-    if(nrow(temp) > 0){
-      bounty_list <- temp$name
-      names(bounty_list) <-  paste(temp$quest, " - ", temp$zone )
-    }else{
-      bounty_list <- c()
-    }
-    
-    # STORE PANEL
-    updateSelectInput(session, "store_quest", choices = quest_list, selected=1)
-    updateSelectInput(session, "store_zone", choices = zone_list, selected=1)
+  
 
-    # SUBMIT PANEL
-    updateSelectInput(session, "submit_img", choices = bounty_list, selected=input$submit_img)
-    selected_bounty <- dbReadTable(con, "bounties") %>%  filter(name == input$submit_img)
-    updateSelectInput(session, "submit_quest", choices = quest_list, selected = selected_bounty$id_quest)
-    updateSelectInput(session, "submit_zone", choices = zone_list, selected = selected_bounty$id_zone)
-    
-  })
   
-  observe({
-    req(input$from_backup_file)
-    all_bu <- list.files("www/bu_db/")
-    updateSelectInput(session, "select_table_bu", choices = all_bu, selected = all_bu[1])
-  })
-  
-  # Select the talbe that match the input file
-  observe({
-    req(rs$input_file)
-    
-    temp <- colnames(rs$input_file)
-    match <- NULL 
-    k <- 0
-    for(i in tables_str){
-      k <- k+1
-      if(all(temp == i)){
-        match <- k
-      }
-    }
-    updateSelectInput(session, "select_table_1", 
-                      choices = all_tables[match], 
-                      selected = all_tables[match])
-    
-  })
+  #--------------------------------------------------------------------------------
+  #----------------------  LOGIN FUNCTIONS ----------------------------------------
+  #--------------------------------------------------------------------------------
   
   
-  #---------------------------------------------   LOGIN FUNCTIONS  --------------------------------------------------
-  
-  
-  #-------------------------
+  #--------------------------------------------------
   # LOGIN WITH MODAL DIALOGS
-  #-------------------------
-  # observe(modalLogin())
+  # Modals are used to manage the users login. 
+  # Not sure this is the best option, but it works
+  #--------------------------------------------------
   
+  
+  # This is the basic modal login. it appears when the app is open
+  # Disapears when the Action button is clicked. Then the login and password
+  # are checked. If they are not OK, this modal is re-openned.
   modalLogin <- function(){
     showModal(modalDialog(
       textInput("username", "Username",
                 placeholder = 'Sacha'
       ),
-      textInput("password", "Password",
+      passwordInput("password", "Password",
                 placeholder = 'Pikachu'
       ),
       footer = tagList(
@@ -150,6 +99,7 @@ shinyServer(function(input, output, clientData, session) {
     ))
   }
   
+  # Failed login modal dialog. Appears if the password and login check is not successful. 
   modalFailed <- function(){
     showModal(modalDialog(
       tags$b("Wrong username or password. Try again"),
@@ -176,6 +126,8 @@ shinyServer(function(input, output, clientData, session) {
       rs$current_user = user$id
       rs$current_group = user$group_id
       rs$current_role = user$role
+      # If this is the first time the user logs in, then 
+      # the user needs to reset the password. 
       if(user$login == 0){
         statement <- paste0("UPDATE users ",
                             "SET login = 1 ",
@@ -184,12 +136,16 @@ shinyServer(function(input, output, clientData, session) {
         modalPassword()
       } 
 
-      temp <- data.frame(datetime = as.character(now()), username = input$username, user_id = rs$current_user)
-      dbWriteTable(con, "log", temp, append = TRUE)   
+      # Record the user loggin in the log table
+      dbWriteTable(con, "log", data.frame(datetime = as.character(now()), 
+                                          username = input$username, 
+                                          user_id = rs$current_user), 
+                   append = TRUE)   
       
       
       
     }else{
+      # IF loggin is incorrect, then send Failed modal message
       removeModal()
       sendSweetAlert(session, title = "Password or login incorrect", 
                      text = NULL, type = "error",
@@ -198,11 +154,6 @@ shinyServer(function(input, output, clientData, session) {
     }
   })
   
-  # # when closing the failled message, go back to login modal
-  # observeEvent(input$ok_2, {
-  #     modalLogin()
-  # })
-  # 
   
  # Change the password when login for the first time 
   modalPassword <- function(){
@@ -211,7 +162,7 @@ shinyServer(function(input, output, clientData, session) {
       textInput("current_noma", "NOMA",
                 placeholder = "noma"
       ),
-      textInput("new_password", "New password",
+      passwordInput("new_password", "New password",
                 placeholder = "password"
       ),
       footer = tagList(
@@ -219,7 +170,9 @@ shinyServer(function(input, output, clientData, session) {
       )
     ))
   }
-  # Update the name of the group
+  
+  
+  # Update the password of the user
   observeEvent(input$psw_change, {
     
       if(input$current_noma != rs$current_user){
@@ -234,18 +187,20 @@ shinyServer(function(input, output, clientData, session) {
         dbSendStatement(con, statement)
         removeModal()
         sendSweetAlert(session, title = "Password name changed succefully", 
-                       text = NULL,
+                       text = NULL, type = "success",
                        btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
       }
     
   })
   
-  
+  # Set the current user's role, for access from the UI
+  # This is needed as the UI changes depending on the user's role
   output$role <- reactive({
     req(rs$current_role)
     switch(rs$current_role,
            "player" = 1,
-           "master" = 0
+           "master" = 0, 
+           "god" = -1
     )
   })
   
@@ -253,34 +208,42 @@ shinyServer(function(input, output, clientData, session) {
   
   
   
-  
-  #-------------------------
-  #-------------------------
+  #--------------------------------------------------
   # CREATE A MODAL WITH CURRENT TASKS
-  #-------------------------
+  # This modal can be triggered by the users
+  # It shows the remaining tasks to finish the game. 
+  # These tasks are defined by the game parameters. 
+  #--------------------------------------------------
+  
   observeEvent(input$tasks, {
     
     print("Task modal")
-    print(rs$current_week)
-    print(rs$current_group)
+
     # Get the group data
     temp <- dbReadTable(con, "bounties")   %>%  
-      filter(id_group == rs$current_group & week_submitted == rs$current_week) 
-    print(temp)
-    week_bounties <- merge(temp, dbReadTable(con, "quests"), by.x = "id_quest", by.y = "id")
+      filter(id_group == rs$current_group)# 
+
+    bounties <- merge(temp, dbReadTable(con, "quests"), by.x = "id_quest", by.y = "id")
+    n_out <- nrow(bounties[bounties$id_zone == 0,])
+    n_quests <- nrow(bounties)
+    n_zones <- length(unique(bounties$id_zone))
     
-    n_quests <- nrow(week_bounties)
-    n_animal <- nrow(week_bounties[week_bounties$type == "animal",])
-    n_vegetal <- nrow(week_bounties[week_bounties$type == "végétal",])
-    n_zones <- length(unique(week_bounties$id_zone))
+    mess <- paste0("Hello <b>",rs$current_user_name,"</b>, here is your task list for the game:</br></br>",
+                   "<ul><li><b>bounties</b> still needed: <b>",
+                   (input$req_bounties - n_quests),"</b></li>")
+    for(t in unique(all_quests$type)){
+      n_type <- nrow(bounties[bounties$type == t,])
+      mess <- paste0(mess, "<li><b>",t," bounties</b> still needed: <b>",
+                     (input$req_types - n_type),"</b></li>")
+    }
+    mess <- paste0(mess, "<li><b>out-of-zone bounties</b> still allowed: <b>",
+                   (input$req_out_zones - n_out),"</b></li>")
+    mess <- paste0(mess, "<li><b>zones</b> still needed: <b>",
+                   (input$req_zones - n_zones),"</b></li></ul>")
     
     showModal(modalDialog(
-      title = paste0("Week's progress of team ",rs$current_group_name),
-      HTML(paste0("Hello <b>",rs$current_user_name,"</b>, here is your task list for the week:</br></br>",
-                  "<ul><li>Bounties left this week: <b>",(req_bounties-n_quests),"</b></li>",
-                  "<li>Animal bounties still needed: <b>",(req_animal - n_animal),"</b></li>",
-                  "<li>Vegetal bounties still needed: <b>",(req_vegetal - n_vegetal),"</b></li>",
-                  "<li>Zones still needed: <b>",(req_zones - n_zones),"</b></li></ul>")),
+      title = paste0("Progress of team ",rs$current_group_name),
+      HTML(mess),
       easyClose = TRUE,
       footer = tagList(
         actionButton("group_name", "Change group name", icon=icon("cogs")),
@@ -290,14 +253,15 @@ shinyServer(function(input, output, clientData, session) {
   })
   
   
-  
-  #-----------------------------------------------------------------------------------------------
-  
+
   
   
-  #-------------------------
+  #--------------------------------------------------
   # CREATE A MODAL TO CHANGE GROUP NAME
-  #-------------------------
+  # Allows the user to change the name of the group
+  # A name is assigned to the group by default
+  #--------------------------------------------------
+  
   # Not sure this is the best was to do it. But trying to fit functions in the limited space... 
   observeEvent(input$group_name, {
     removeModal()
@@ -336,14 +300,13 @@ shinyServer(function(input, output, clientData, session) {
   
   
   
-  
-  #-----------------------------------------------------------------------------------------------
- 
-
    
-  #-------------------------
+  #--------------------------------------------------
   # CREATE A MODAL WITH THE RULES
-  #-------------------------
+  # Can be triggered by the users. 
+  # Displays the rules of the game. 
+  #--------------------------------------------------
+  
   observeEvent(input$rules, {
     # Check that data object exists and is data frame.
     showModal(modalDialog(
@@ -352,16 +315,39 @@ shinyServer(function(input, output, clientData, session) {
       easyClose = TRUE
     ))
   })
+
   
   
   
-  #-----------------------------------  STORE PANEL FUNCTIONS ------------------------------------------------------------
   
   
+  #--------------------------------------------------------------------------------
+  #----------------------  STORE PANEL FUNCTIONS ----------------------------------
+  #--------------------------------------------------------------------------------
   
-  #-------------------------
-  # LOAD THE IMAGE, RESIZE IT, GET THE EXIF DATA  AND SAVE IT IN A TEMP FOLDER
-  #-------------------------
+  
+  #--------------------------------------------------
+  # UPDATE THE UI WITH CONTENT FROM THE DATABASE
+  #--------------------------------------------------
+  observe({
+    req(rs$update)
+    
+    # Get all the active quests
+    active_quests <- dbReadTable(con, "quests") %>%  filter(found < input$max_found_quest)
+    quest_list <- split(active_quests$id, active_quests$name)
+    
+    # Update the STORE panel
+    updateSelectInput(session, "store_quest", choices = quest_list, selected=1)
+    updateSelectInput(session, "store_zone", choices = zone_list, selected=1)
+    
+  })
+  
+  
+  #--------------------------------------------------
+  # LOAD THE IMAGE
+  # The image is loaded, resize, then stored in the 
+  # dedicated forlder for later use. 
+  #--------------------------------------------------
   observe({
     req(input$file)
     inFile <- input$file
@@ -371,6 +357,7 @@ shinyServer(function(input, output, clientData, session) {
     img <- readImage(inFile$datapath)
     new_height <- round(dim(img)[2] / dim(img)[1] * 300)
     img <- resizeImage(image = img, width=300, height = new_height)
+    # the image is assigned a random id. That id is stored. 
     rs$current_img_name <- paste0(stri_rand_strings(1, 15), ".jpg")
     writeImage(img, paste0("www/temp/", rs$current_img_name))
     
@@ -392,7 +379,6 @@ shinyServer(function(input, output, clientData, session) {
         temp <- all_zones_delim %>% filter(id == z)
         if(point.in.polygon(dat$latitude, dat$longitude, temp$latitude, temp$longitude) == 1){
           updateSelectInput(session, "store_zone", choices = zone_list, selected=z)
-          print(paste0("zone = ", z))
         }
       }
     }
@@ -401,9 +387,9 @@ shinyServer(function(input, output, clientData, session) {
     
   })
   
-  #-------------------------
+  #--------------------------------------------------
   # DISPLAY THE IMAGE IN THE STORE PANEL
-  #-------------------------
+  #--------------------------------------------------
   output$store_img <- renderImage({
     req(rs$current_img_name)
     filename <- normalizePath(file.path('./www/temp/', rs$current_img_name))
@@ -413,9 +399,9 @@ shinyServer(function(input, output, clientData, session) {
   }, deleteFile = F)
   
   
-  #-------------------------
+  #--------------------------------------------------
   # DISPLAY THE MAP OF THE CURRENT IMAGE
-  #-------------------------
+  #--------------------------------------------------
   output$store_map <- renderLeaflet({
     
     current_zone <- all_zones_delim %>% 
@@ -463,9 +449,12 @@ shinyServer(function(input, output, clientData, session) {
     
   
   
-  #-------------------------
+  #-------------------------------------------------
   # STORE THE BOUNTY
-  #-------------------------
+  # Store the current image in the database. The users
+  # will then be able to submit this image for evaluation
+  #-------------------------------------------------
+  
   observeEvent(input$store, {
     # Check that data object exists and is data frame.
     
@@ -480,7 +469,6 @@ shinyServer(function(input, output, clientData, session) {
                        latitude = rs$current_img_gps$latitude,
                        submitted = 0,
                        validated = -1,
-                       week_submitted = NA,
                        date_submitted = NA,
                        date_stored = as.character(today()),
                        date_validated = NA, 
@@ -509,14 +497,59 @@ shinyServer(function(input, output, clientData, session) {
   
   
   
+  #--------------------------------------------------------------------------------
+  #----------------------  SUBMIT PANEL FUNCTIONS ----------------------------------
+  #--------------------------------------------------------------------------------
   
-  #-----------------------------------  SUBMIT PANEL FUNCTIONS ------------------------------------------------------------
+  
+  #--------------------------------------------------
+  # UPDATE THE UI WITH CONTENT FROM THE DATABASE
+  #--------------------------------------------------
+  observe({
+    req(input$submit_img)
+    req(rs$update)
+    
+    # Get all the active quests
+    active_quests <- dbReadTable(con, "quests") %>%  filter(found < input$max_found_quest)
+    quest_list <- split(active_quests$id, active_quests$name)
+    
+    selected_bounty <- dbReadTable(con, "bounties") %>%  filter(name == input$submit_img)
+    
+    
+    # Enrich the list of bouties with the information from the Quest and Zone tables
+    temp <- merge(rs$active_bounties, all_quests, 
+                  by.x = "id_quest", 
+                  by.y = "id") %>% 
+      mutate(name = name.x, quest = name.y) %>% 
+      select(-c(name.y, name.x))
+    
+    temp <- merge(temp, all_zones, 
+                  by.x = "id_zone", 
+                  by.y = "id") %>% 
+      mutate(name = name.x, zone = name.y) %>% 
+      select(-c(name.y, name.x))
+    
+    if(nrow(temp) > 0){
+      bounty_list <- temp$name
+      names(bounty_list) <-  paste(temp$quest, " - ", temp$zone )
+    }else{
+      bounty_list <- c()
+    }
+
+    #  Update the SUBMIT panel
+    updateSelectInput(session, "submit_img", choices = bounty_list, selected=input$submit_img)
+    updateSelectInput(session, "submit_quest", choices = quest_list, selected = selected_bounty$id_quest)
+    updateSelectInput(session, "submit_zone", choices = zone_list, selected = selected_bounty$id_zone)
+    
+  })
   
   
   
-  #-------------------------
+  
+  #-------------------------------------------------
   # DISPLAY THE IMAGE IN THE SUBMIT PANEL
-  #-------------------------
+  # Display the selected image 
+  #-------------------------------------------------
   output$submit_img <- renderImage({
     req(input$submit_img)
     
@@ -531,54 +564,74 @@ shinyServer(function(input, output, clientData, session) {
   }, deleteFile = F)
   
   
-  #-------------------------
+  #-------------------------------------------------
   # SUBMIT THE BOUNTY
-  #-------------------------
+  # The users can submit stored bounties for evaluation
+  # Once a bounty is submitted, this cannot be undone
+  # Bounties can only be submitted once for each quest
+  # and only if that quest is still active. 
+  #-------------------------------------------------
+  
   observeEvent(input$submit, {
     
     temp <- dbReadTable(con, "bounties")   %>%  
       filter(id_group == rs$current_group, 
              name == input$submit_img)
     
-    active_bounties <- dbReadTable(con, "bounties")   %>%  filter(id_group == rs$current_group & submitted == 1) 
-    week_bounties <- active_bounties   %>%  
-      filter(week_submitted == rs$current_week) 
+    current_quest <- dbReadTable(con, "quests") %>% 
+      filter(id == input$submit_quest)
+    
+    
+    active_bounties <- dbReadTable(con, "bounties")   %>%  
+      filter(id_group == rs$current_group & submitted == 1) 
 
     if(input$submit_quest %in% active_bounties$id_quest){
       # Check that data object exists and is data frame.
       sendSweetAlert(session, title = "Bounty already submitted", 
-                     text = "You already submitted a bounty for this quest. Please select an other quest.", type = "error",
-                     btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
-      
-    }else if(nrow(week_bounties) >= req_bounties){
-      sendSweetAlert(session, title = "Total number of bounties reached", 
-                     text = paste0("You already submitted ",req_bounties," bounties this week. Congratulation! You can still store new bounties but have to wait next week to submit more. "), 
+                     text = "You already submitted a bounty for this quest. Please select an other quest.",
                      type = "error",
-                     btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
+                     btn_labels = "Ok", html = FALSE, 
+                     closeOnClickOutside = TRUE)
+    }else if (current_quest$found < input$max_found_quest){
+      # Check if the quest is still active
+      sendSweetAlert(session, title = "Quest not active anymore", 
+                     text = paste0("This quest is not active anymore. It was used for ",
+                                   input$max_found_quest, " bounties already."),
+                     type = "error",
+                     btn_labels = "Ok", html = FALSE, 
+                     closeOnClickOutside = TRUE)
+      
     }else{
-      
-      
+      # if the bounty has not been submitted and and still active, then the players can submit it.
       statement <- paste0("UPDATE bounties ",
                           "SET submitted = 1, ",
                           "id_quest = ",input$submit_quest," ,",
                           " id_zone = ",input$submit_zone," ,",
                           " name = '", paste(input$submit_quest, input$submit_zone, rs$current_group, sep="_"), "' ,",
                           " date_submitted = '",as.character(today()),"' ,",
-                          " submitted_by = ",rs$current_user," ,",
-                          " week_submitted = ",rs$current_week," ",
+                          " submitted_by = ",rs$current_user," ",
                           "WHERE code == '",temp$code,"'")
-      print(statement)
       dbSendStatement(con, statement)
       rs$update <- -rs$update    
+      
+      # update the number of found bounties submitted to this quests, and make it
+      # inactive if necessary (if nmber of bounties is above the threshold)
+      statement <- paste0("UPDATE quests ",
+                          "SET found = ",(current_quest$found + 1)," ",
+                          "WHERE id == ",input$submit_quest)
+      dbSendStatement(con, statement)
+
       sendSweetAlert(session, title = "Bounty submitted", text = NULL, type = "success",
                      btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
     }
   })
   
   
-  #-------------------------
+  #-------------------------------------------------
   # DELETE THE BOUNTY
-  #-------------------------
+  # This allows the users to delete stored, unsubmitted
+  # bounties from their collection
+  #-------------------------------------------------
   observeEvent(input$delete, {
     statement <- paste0("DELETE FROM bounties ",
                         "WHERE name == '",input$submit_img,"'")
@@ -591,23 +644,35 @@ shinyServer(function(input, output, clientData, session) {
   
   
   
-  #-----------------------------------  QUESTS PANEL FUNCTIONS ------------------------------------------------------------
+  #--------------------------------------------------------------------------------
+  #----------------------  QUESTS PANEL FUNCTIONS ----------------------------------
+  #--------------------------------------------------------------------------------
   
   
-  
-  #-------------------------
+  #-----------------------------------
   # DISPLAY A TABLE WITH ALL QUESTS
-  #-------------------------
+  # this table simply display all the
+  # quests from the game
+  #-----------------------------------
   output$all_quests = renderDataTable({
     
-    temp <- all_quests %>% 
-      select(id, type, name, points)
+    
+    # Check wether this user wants to see the 
+    # active or inactive quests
+    
+    temp <- dbReadTable(con, "quests") %>% 
+      filter(found < input$max_found_quest) %>% 
+      select(id, type, group, name, points, found)
+    
+    if(input$show_inactive){
+      temp <- dbReadTable(con, "quests") %>% 
+        filter(found >= input$max_found_quest) %>% 
+        select(id, type, group, name, points, found)
+    }
     
     dt <- as.datatable(formattable(temp, list(
       points = color_tile("#e5f5f9", "#2ca25f"),
-      type = formatter("span", 
-                       style = x ~ style(color = ifelse(x =="végétal", "green", "magenta")),
-                       x ~ icontext(ifelse(x == "végétal", "leaf", "piggy-bank"), ifelse(x=="végétal", "", "")))
+      found = color_tile("#e5f5f9", "#2ca25f")
     )),
     rownames = F,
     options = list(pageLength = 50))
@@ -618,9 +683,11 @@ shinyServer(function(input, output, clientData, session) {
   
   
   
-  #-------------------------
+  
+  #-------------------------------------------------
   # DISPLAY A MAP WITH THE DIFERENT ZONES
-  #-------------------------
+  # Show the active zones in the game
+  #-------------------------------------------------
   output$zones_map <- renderLeaflet({
     
     to_plot <- merge(all_zones_delim, all_zones, by.x = "zone_id", by.y = "id")
@@ -643,14 +710,41 @@ shinyServer(function(input, output, clientData, session) {
   })
   
   
+  #-------------------------------------------------
+  # DISPLAY A TEXT DESCRIBING THE QUESTS
+  # Say how many quests are left and when they are removed
+  #-------------------------------------------------
+  output$summary_all_quests <- renderUI({
+    
+    temp <- dbReadTable(con, "quests")
+    
+    actives <- temp %>% filter(found < input$max_found_quest) %>% nrow()
+    inactives <- temp %>% filter(found >= input$max_found_quest) %>% nrow()
+    
+    text <- paste0("<b>",actives," quests</b> are still active.</br>",
+                   "<b>",inactives," quests</b> are inactive.</br>",
+                   "Quests become inactive when they have been found <b>",input$max_found_quest," times</b></br>"
+                   )
+    
+    HTML(text)
+    
+    
+  })
   
-  #-----------------------------------  BOUNTY PANEL FUNCTIONS ------------------------------------------------------------
   
   
   
-  #-------------------------
+  #--------------------------------------------------------------------------------
+  #----------------------  BOUNTY PANEL FUNCTIONS ----------------------------------
+  #--------------------------------------------------------------------------------
+  
+  
+  #----------------------------------------------
   # DISPLAY A TABLE WITH ALL GROUPS POINTS
-  #-------------------------
+  # This table diplays the points of all the 
+  # different groupes
+  #----------------------------------------------
+  
   output$all_bounties = renderDataTable({
     req(rs$update)
     temp1 <- dbReadTable(con, "bounties") %>% filter(submitted == 1)
@@ -675,9 +769,12 @@ shinyServer(function(input, output, clientData, session) {
   })
   
   
-  #-------------------------
+  #-------------------------------------------
   # DISPLAY A SUMMARY WITH THE GROUP BOUNTIES
-  #-------------------------
+  # This text informs the user about synthetic
+  # information regarding his/her bounties
+  #-------------------------------------------
+  
   output$summary_group_bounties <- renderUI({
     temp1 <- dbReadTable(con, "bounties")   %>%  
       filter(id_group == rs$current_group) %>% 
@@ -697,30 +794,28 @@ shinyServer(function(input, output, clientData, session) {
     
   })
   
-  #-------------------------
+  #-------------------------------------------
   # DISPLAY A TABLE WITH THE GROUP BOUNTIES
-  #-------------------------
+  # This table displays the bounties stored by
+  # by the user. 
+  #-------------------------------------------
   output$group_bounties = renderDataTable({
     req(rs$update)
     req(rs$update_correction)
     temp1 <- dbReadTable(con, "bounties")   %>%  
       filter(id_group == rs$current_group) %>% 
-      select(id_quest, week_submitted, submitted, validated)
+      select(id_quest, submitted, validated)
     
     temp2 <- all_quests %>% 
-      select(id, type, name, points)
+      select(id, type, group, name, points)
     
     temp <- merge(temp1, temp2, by.x = "id_quest", by.y = "id") %>% 
       mutate(sub = submitted,
-             val = validated,
-             week = week_submitted) %>% 
-      select(type, week, name, points, sub, val)
+             val = validated) %>% 
+      select(type, name, group, points, sub, val)
     
     dt <- as.datatable(formattable(temp, list(
       points = color_tile("#e5f5f9", "#2ca25f"),
-      type = formatter("span", 
-                       style = x ~ style(color = ifelse(x =="végétal", "green", "magenta")),
-                       x ~ icontext(ifelse(x == "végétal", "leaf", "piggy-bank"), ifelse(x=="végétal", "", ""))),
       sub = formatter("span", 
                        style = x ~ style(color = ifelse(x == 1, "green", "red")),
                        x ~ icontext(ifelse(x == 1, "ok", "remove"))),
@@ -731,68 +826,132 @@ shinyServer(function(input, output, clientData, session) {
                                             ifelse(x == -1, "time", "remove"))))#,
     )),
     rownames = F,
-    options = list(pageLength = 50))
+    options = list(pageLength = 50), selection=list(mode="single"))
     
     dt
   })
   
-  
-  
-  #-----------------------------------  ADMIN PANEL FUNCTIONS ------------------------------------------------------------
-  
-  
-  
-  
-  #-------------------------
-  # CORRECTION PANEL
-  #-------------------------
-  
-  
-  
-  observe({
-    
-    req(rs$update_correction)
-    if(rs$current_role != "master") return(NULL)
-    
-    # GET ALL THE IMAGE TO CORRECT
-    rs$to_correct  <- merge(dbReadTable(con, "bounties") , all_quests, by.x = "id_quest", by.y = "id") %>% 
-      mutate(name = name.x, 
-             quest = name.y) %>% 
-      filter(submitted == 1,
-             validated %in% input$correction_val,
-             week_submitted %in% input$correction_week,
-             type %in% input$correction_type) %>% 
-      filter(!code %in% rs$correction_done)
+  #---------------------------------------------
+  # DISPLAY THE IMAGE IN THE BOUNTY PANEL
+  # Display the image of the quest selected in 
+  # the 'group_bounties' table
+  #---------------------------------------------
+  output$bounty_img <- renderImage({
+    req(input$group_bounties_rows_selected)
+    temp <- dbReadTable(con, "bounties")   %>%  
+      filter(id_group == rs$current_group) 
+    temp <- temp[input$group_bounties_rows_selected, ] # Get the select row only
     
     
-    to_correct_quests <- rs$to_correct %>% 
-      distinct(id_quest, quest)
-    to_correct <- to_correct_quests$id
-    names(to_correct) <- to_correct_quests$quest
+    filename <- normalizePath(file.path(paste0('./www/img/', temp$code,".jpg")))
     
-    active_quests <- all_quests %>%  
-      filter(id %in% to_correct_quests$id &
-               status == "active")
-    
-    # CORRECTION PANEL
-    updateSelectInput(session, "select_table", choices = all_tables, selected = "groups")
-    updateSelectInput(session, "select_table_1", choices = all_tables, selected = "groups")
-    updateSelectInput(session, "correction_quest", choices = to_correct, selected = to_correct[1])
-
+    # Return a list containing the filename and alt text
+    list(src = filename, alt = paste("Image name", temp$code))
+  }, deleteFile = F)
+  
+  
+  #--------------------------------------------------------------------------------
+  #----------------------  ADMIN PANEL FUNCTIONS ----------------------------------
+  #--------------------------------------------------------------------------------
+  
+  #-------------------------------------------------
+  # PARAMETERS PANEL  
+  # This panel allows GOD to change the game parameters
+  # This should not be done during the game!
+  #-------------------------------------------------
+  
+  observeEvent(input$update_params, {
+  
+      statement <- paste0("UPDATE params ",
+                          "SET value = ",input$req_bounties," ",
+                          "WHERE param == 'req_bounties'")
+      dbSendStatement(con, statement)
+      
+      statement <- paste0("UPDATE params ",
+                          "SET value = ",input$req_types," ",
+                          "WHERE param == 'req_types'")
+      dbSendStatement(con, statement)
+      
+      statement <- paste0("UPDATE params ",
+                          "SET value = ",input$req_zones," ",
+                          "WHERE param == 'req_zones'")
+      dbSendStatement(con, statement)
+      
+      statement <- paste0("UPDATE params ",
+                          "SET value = ",input$req_out_zones," ",
+                          "WHERE param == 'req_out_zones'")
+      dbSendStatement(con, statement)
+      
+      statement <- paste0("UPDATE params ",
+                          "SET value = ",input$max_found_quest," ",
+                          "WHERE param == 'max_found_quest'")
+      dbSendStatement(con, statement)
+      
+      sendSweetAlert(session, title = "Parameters changed", text = NULL, type = "success",
+                     btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
   })
   
   
   
-  # Load the data already done
+  #-------------------------------------------------
+  # CORRECTION PANEL
+  # This section allows the masters to correct the 
+  # quests submitted by the users. The database is then 
+  # directly updated and the corrections visible by the users. 
+  #-------------------------------------------------
+  
+  # Update the different fields of the corrections section
   observe({
+    
+    # This can be trigger on demand by the different actions in the section
+    req(rs$update_correction)
+    
+    # Load only if the current user is a master
+    if(rs$current_role != "master") return(NULL) 
+    
+    # Load the images to correct. Images are selected based 
+    # on the user choices. Only submitted images are selected
+    rs$to_correct  <- merge(dbReadTable(con, "bounties") , 
+                            all_quests, 
+                            by.x = "id_quest", by.y = "id") %>% 
+      mutate(name = name.x, 
+             quest = name.y) %>% 
+      filter(submitted == 1,
+             validated %in% input$correction_val,
+             type %in% input$correction_type, 
+             !code %in% rs$correction_done)
+    
+    # Get the list of quests to correct 
+    # (to be used in the dropdown menu)
+    to_correct_quests <- rs$to_correct %>% 
+      distinct(id_quest, quest)
+    
+    # Create the list of quests to be used on the menu
+    to_correct <- to_correct_quests$id
+    names(to_correct) <- to_correct_quests$quest
+    
+    # Update the drop down menu based on the user choices
+    updateSelectInput(session, "correction_quest", choices = to_correct, selected = to_correct[1])
+    
+    # Update the game parameters
+    rani <- input$req_animal
+    updateSliderInput(session, "req_animal", min = 0, max = input$req_bounties, value = rani)
+    rveg <- input$req_vegetal
+    updateSliderInput(session, "req_vegetal", min = 0, max = input$req_bounties, value = rveg)
+
+  })
+  
+  
+  # Load the data already corrected in this session
+  observe({
+    if(rs$current_role != "master") return(NULL)
     req(input$correction_quest)
     rs$to_correct_current <-rs$to_correct %>% 
         filter(id_quest == input$correction_quest)
   })
   
-  
-  
-  # Define the current image
+  # Define the image that is diplayed for correction
+  # 
   observe({
     req(rs$update_correction)
     req(rs$to_correct_current)
@@ -802,7 +961,15 @@ shinyServer(function(input, output, clientData, session) {
   })
   
   
-  # Correct
+  # The master is UNABLE TO CORRECT the image
+  # Move to the next one without updating the database
+  observeEvent(input$button_unknown, {
+    rs$update_correction <- -rs$update_correction
+    rs$correction_done <- c(rs$correction_done, rs$current_img$code) # store the current corrections
+  })
+  
+  # The image is CORRECT
+  # Store the result in the database, with a value = 1
   observeEvent(input$button_correct, {
     statement <- paste0("UPDATE bounties ",
                         "SET validated = 1 ,",
@@ -814,11 +981,11 @@ shinyServer(function(input, output, clientData, session) {
     rs$correction_done <- c(rs$correction_done, rs$current_img$code) # store the current corrections
   })
   
-  
-  # WHAT THE FUDGE ?
-  observeEvent(input$button_marrant, {
+  # The image is CORRECT and VERY NICE (and therefore worth keeping on the side)
+  # Store the result in the database, with a value = 1
+  observeEvent(input$button_tocheck, {
     statement <- paste0("UPDATE bounties ",
-                        "SET validated = -3, ",
+                        "SET validated = 4, ",
                         " date_validated = '",as.character(today()), "',",
                         " validated_by = ",rs$current_user,
                         " WHERE code == '",rs$current_img$code,"'")
@@ -827,13 +994,8 @@ shinyServer(function(input, output, clientData, session) {
     rs$correction_done <- c(rs$correction_done, rs$current_img$code) # store the current corrections
   })
   
-  # UNKNOWN
-  observeEvent(input$button_unknown, {
-    rs$update_correction <- -rs$update_correction
-    rs$correction_done <- c(rs$correction_done, rs$current_img$code) # store the current corrections
-  })
-  
-  # FALsE
+  # The image is INCORRECT 
+  # Store the result in the database, with a value = -0
   observeEvent(input$button_false, {
     statement <- paste0("UPDATE bounties ",
                         "SET validated = 0, ",
@@ -845,7 +1007,21 @@ shinyServer(function(input, output, clientData, session) {
     rs$correction_done <- c(rs$correction_done, rs$current_img$code) # store the current corrections
   })
   
-  # NOT VISIBLE
+  # The image is INCORRECT and ABSURD (and therefore worth keeping on the side)
+  # Store the result in the database, with a value = -3
+  observeEvent(input$button_marrant, {
+    statement <- paste0("UPDATE bounties ",
+                        "SET validated = -3, ",
+                        " date_validated = '",as.character(today()), "',",
+                        " validated_by = ",rs$current_user,
+                        " WHERE code == '",rs$current_img$code,"'")
+    dbSendStatement(con, statement)
+    rs$update_correction <- -rs$update_correction
+    rs$correction_done <- c(rs$correction_done, rs$current_img$code) # store the current corrections
+  })
+  
+  # The quest in the image is NOT VISIBLE (and therefore considered as false)
+  # Store the result in the database, with a value = -2
   observeEvent(input$button_flou, {
     statement <- paste0("UPDATE bounties ",
                         "SET validated = -2,",
@@ -858,27 +1034,15 @@ shinyServer(function(input, output, clientData, session) {
   })
   
   
-  # TO CHECK
-  observeEvent(input$button_tocheck, {
-    statement <- paste0("UPDATE bounties ",
-                        "SET validated = 4, ",
-                        " date_validated = '",as.character(today()), "',",
-                        " validated_by = ",rs$current_user,
-                        " WHERE code == '",rs$current_img$code,"'")
-    dbSendStatement(con, statement)
-    rs$update_correction <- -rs$update_correction
-    rs$correction_done <- c(rs$correction_done, rs$current_img$code) # store the current corrections
-  })
+  # Display the current image title, to be displayed on top of the image
+  # The title include other information about the image
   
-  
-  # The image title
   output$img_title <- renderText({
     req(rs$current_img)
     text <- paste0("<h3>",rs$current_img$quest,"</h3>",
                    "<b>title</b> = ",rs$current_img$name,
                    " / <b>code</b> = ",rs$current_img$code,
-                   " / <b>date</b> = ", rs$current_img$date_submitted, 
-                   " / <b>week</b> = ", rs$current_img$week_submitted)
+                   " / <b>date</b> = ", rs$current_img$date_submitted)
     if(rs$current_img$validated == 1){
       text <- paste0(text, "</br> STATUS = <b>CORRECT")
     }else if(rs$current_img$validated == -1){
@@ -895,18 +1059,18 @@ shinyServer(function(input, output, clientData, session) {
     text
   })
   
-  # The number of images left to check
+  
+  # Display the number of images left to check in this section
   output$to_do <- renderText({
     req(rs$to_correct_current)
     n <- rs$to_correct_current %>% 
       filter(validated %in% input$correction_val,
-             week_submitted %in% input$correction_week,
              type %in% input$correction_type)  %>% 
       nrow()
     paste0(n, " remaining images for this quest")
   })
   
-  # The number of images done in this correction
+  # Display the number of images done in this correction session
   output$done <- renderText({
     req(rs$correction_done)
     paste0(length(rs$correction_done), " image(s) done")
@@ -914,47 +1078,22 @@ shinyServer(function(input, output, clientData, session) {
   
   
   # Display the image to correct
-  
   output$myImage <-  renderUI({
     
     req(rs$current_img)
-    
-    # if(nrow(rs$current_img) == 0){
-    #   filename <- normalizePath(file.path('./www/img/', "done.png"))
-    # }else{
-    #   toshow <- paste0(rs$current_img$code, ".jpg")
-    #   filename <- normalizePath(file.path('./www/img/', toshow))
-    # } 
-    
     images <- data.frame(src = paste0(rs$current_img$code, ".jpg")) 
-
-    
     lightbox_gallery(images,"gallery",display = TRUE, path = "img", width="100%")
   })
   
-  # 
-  # output$myImage <- renderImage({
-  #   req(rs$current_img)
-  #   
-  #   if(nrow(rs$current_img) == 0){
-  #     filename <- normalizePath(file.path('./www/img/', "done.png"))
-  #   }else{
-  #     toshow <- paste0(rs$current_img$code, ".jpg")
-  #     filename <- normalizePath(file.path('./www/img/', toshow))
-  #   }
-  #   
-  #   # Return a list containing the filename and alt text
-  #   list(src = filename, alt = paste("Image number", input$n))
-  # }, deleteFile = F)
-  # 
-  # Display correct images
+
+  # Display the correct images. These images come from a previous
+  # BioGO game. They serve a guideline for the masters during the corrections.
   
   output$knowledge_base <-  renderUI({
     
     if(rs$current_role != "master") return(NULL)
     require(input$correction_quest)
     
-    print("HELLO")
     q <- input$correction_quest
     
     # Get the correct image
@@ -967,7 +1106,7 @@ shinyServer(function(input, output, clientData, session) {
     
     images <- images %>% 
       sample_n(min(input$n_correct_img, nrow(images)))
-    
+
     images$key <- c(1:nrow(images))
     
     lightbox_gallery(images,  "gallery",display = TRUE, path = "img_corr")
@@ -976,22 +1115,23 @@ shinyServer(function(input, output, clientData, session) {
   
   
   
-  
-  #-------------------------
+  #--------------------------------------------------
   # DISPLAY A TABLE WITH ALL GROUPS POINTS
-  #-------------------------
+  # This section allow the masters to visualize 
+  # the data in the database. 
+  #--------------------------------------------------
+  
+  # Visualize the selected datatable (via input$select_table)
   output$table_data = renderDataTable({
     if(input$select_table == 1) return(NULL)
-    temp <- dbReadTable(con, input$select_table) 
     
-    dt <- as.datatable(formattable(temp),
-    rownames = F,
-    options = list(pageLength = 50))
+    as.datatable(formattable(dbReadTable(con, input$select_table) ),
+      rownames = F,
+      options = list(pageLength = 50))
     
-    dt
   })
   
-  # Downloadable csv of selected dataset ----
+  # Download a csv file of the selected dataset
   output$download_table_data <- downloadHandler(
     filename = function() {
       paste0(Sys.Date(), "_", input$select_table, ".csv")
@@ -1002,29 +1142,28 @@ shinyServer(function(input, output, clientData, session) {
     }
   )
   
-  #-------------------------
+  #--------------------------------------------------
   # LOAD NEW DATA IN THE DATABASE
-  #-------------------------
+  # This section allow the masters to add new data in the 
+  # database. The data can be either append to or replace
+  # the current one. 
+  #--------------------------------------------------
   
+  # Display the data to be added into the database. 
+  # The data can come either from a new CSV file
+  # of from a back datafiles stored in the app. 
+  # The data is then stored in rs$input_file
   output$input_table_data <- renderDataTable({
-    # input$file1 will be NULL initially. After the user selects
-    # and uploads a file, it will be a data frame with 'name',
-    # 'size', 'type', and 'datapath' columns. The 'datapath'
-    # column will contain the local filenames where the data can
-    # be found.
-    # req(input$input_file)
     
-    # if (is.null(inFile))
-    #   return(NULL)
-    
+    # Load data from a loaded csv files
     if(!input$from_backup_file){
       inFile <- input$input_file
       if (is.null(inFile)) return(NULL)
       temp <- read.csv(inFile$datapath)  
+    # Load data from a backup file
     }else{
       temp <- read.csv(paste0("www/bu_db/", input$select_table_bu))  
     }
-    
     
     dt <- as.datatable(formattable(temp),
                        rownames = F,
@@ -1034,107 +1173,164 @@ shinyServer(function(input, output, clientData, session) {
     dt
   })
   
+  # Update the list of available backup datafiles
+  # These will be displayed and can be used to replace the 
+  # current data in the database
+  observe({
+    req(input$from_backup_file)
+    all_bu <- list.files("www/bu_db/")
+    updateSelectInput(session, "select_table_bu", choices = all_bu, selected = all_bu[1])
+  })
   
+  
+  # Select the table in the DB that match the input file
+  # This is done based on the structure of the loaded table
+  # The loaded table should have the same column names as one of
+  # the tables in the database. This is done only when
+  # a table is displayed. Work with both new data (from csv)
+  # and with the backup data (as the data come from rs$input_file)
+  observe({
+    req(rs$input_file)
+    temp <- colnames(rs$input_file)
+    match <- NULL 
+    k <- 0
+    for(i in tables_str){
+      k <- k+1
+      if(all(temp == i)){
+        match <- k
+      }
+    }
+    updateSelectInput(session, "select_table_1",  
+                      choices = all_tables[match], 
+                      selected = all_tables[match])
+  })
+  
+  # # Select the table in the DB that match the backup file
+  # # This is done based on the name of the backup table
+  # # This is done only when a table is loaded. 
+  # observe({
+  #   req(input$select_table_bu)
+  #   print("backup update")
+  #   match <- substr(".csv", "", strsplit(input$select_table_bu, "_")[[1]][2])
+  #   updateSelectInput(session, "select_table_1",  
+  #                     choices = all_tables[match], 
+  #                     selected = all_tables[match])
+  # })
+  
+  
+  # Update one of the data table with the loaded data (from CSV file)
+  # The data can either replace the current data (input$append_data == 1), or
+  # be appened to it (input$append_data == 0)
   observeEvent(input$update_table, {
-
+    
     if(input$append_data == 1){
-      # make a bckup of current datatable before erasing it
+      # replace the current data in the DB by the new one. 
+      # make a backup of current datatable before erasing it
       temp <- dbReadTable(con, input$select_table_1) 
       write_csv(temp, paste0("www/bu_db/", Sys.time(), "_", input$select_table_1, ".csv"))
       dbWriteTable(con, input$select_table_1, rs$input_file, overwrite = TRUE)      
       
     }else{
-      temp <- dbReadTable(con, input$select_table_1) 
-      rs$input_file$id <- rs$input_file$id + max(temp$id) + 1
+      # Add the new data to the current one in the DB. 
+      # Update the id field in the new data, for consistency. 
+      rs$input_file$id <- rs$input_file$id + max(temp$id) + 1 
       dbAppendTable(con, name = input$select_table_1, value = rs$input_file)      
     }
     
-    sendSweetAlert(session, title = paste0("Table ",input$select_table_1," updated"), text = NULL, type = "success",
-                   btn_labels = "Ok", html = FALSE, closeOnClickOutside = TRUE)
+    # Success alert
+    sendSweetAlert(session, title = paste0("Table ",input$select_table_1," updated"), 
+                   text = NULL, type = "success",
+                   btn_labels = "Ok", html = FALSE, 
+                   closeOnClickOutside = TRUE)
     
   })
   
   
-  #-------------------------
-  # PLOT DASHBOARD DATA
-  #-------------------------
   
+  #--------------------------------------------------
+  # PLOT DASHBOARD DATA
+  # Plot different information accessibles via the admin tab 
+  # in the interface. 
+  #--------------------------------------------------
+  
+  # Plot the repartition of the different types of quests
   output$dashQuests <- renderPlot({
-    temp <- merge(dbReadTable(con, "bounties"), dbReadTable(con, "quests"), 
-                  by.x="id_quest", by.y = "id")
     
-    count.data <- ddply(temp, .(difficulty), summarise, prop=length(difficulty))
-    count.data <- count.data %>%
+    merge(dbReadTable(con, "bounties"), 
+                  dbReadTable(con, "quests"), 
+                  by.x="id_quest", by.y = "id") %>% 
+      ddply(.(difficulty), summarise, prop=length(difficulty)) %>%
       arrange(desc(difficulty)) %>%
-      mutate(lab.ypos = cumsum(prop) - 0.5*prop)
-    mycols <- c( "#CD534CFF", "#EFC000FF", "#0073C2FF", "#65ac54")
-    
-    ggplot(count.data, aes(x = 2, y = prop, fill = difficulty)) +
-      geom_bar(width = 1, stat = "identity", color = "white") +
-      coord_polar("y", start = 0)+
-      geom_text(aes(y = lab.ypos, label = prop), color = "white", size=10)+
-      scale_fill_manual(values = mycols) +
-      theme_void() +
-      theme(text = element_text(size=6),
-            legend.text = element_text(size=10),
-            legend.title = element_text(size=10)) + 
-      xlim(0.5, 2.5)
+      mutate(lab.ypos = cumsum(prop) - 0.5*prop) %>% 
+      ggplot(aes(x = 2, y = prop, fill = difficulty)) +
+        geom_bar(width = 1, stat = "identity", color = "white") +
+        coord_polar("y", start = 0)+
+        geom_text(aes(y = lab.ypos, label = prop), color = "white", size=10)+
+        scale_fill_manual(values = mycols) +
+        theme_void() +
+        theme(text = element_text(size=6),
+              legend.text = element_text(size=10),
+              legend.title = element_text(size=10)) + 
+        xlim(0.5, 2.5)
 
   })
   
+  
+  # Plot the repartition of the different corrections types
+  # for all the quests submitted
+  
   output$dashCorrections <- renderPlot({
-    temp <- merge(dbReadTable(con, "bounties"), dbReadTable(con, "quests"), 
-                  by.x="id_quest", by.y = "id") %>% 
+    
+    dbReadTable(con, "bounties") %>% 
       mutate(corr = ifelse(validated <= 0, "false", "correct")) %>% 
-      mutate(corr = ifelse(validated == -1, "wating", corr))
-    
-    count.data <- ddply(temp, .(corr), summarise, prop=length(corr))
-    count.data <- count.data %>%
+      mutate(corr = ifelse(validated == -1, "waiting", corr)) %>% 
+      ddply(.(corr), summarise, prop=length(corr)) %>%
       arrange(desc(corr)) %>%
-      mutate(lab.ypos = cumsum(prop) - 0.5*prop)
-    
-    mycols <- c( "#CD534CFF", "#EFC000FF", "#0073C2FF", "#65ac54")
-    
-    ggplot(count.data, aes(x = 2, y = prop, fill = corr)) +
-      geom_bar(width = 1, stat = "identity", color = "white") +
-      coord_polar("y", start = 0)+
-      geom_text(aes(y = lab.ypos, label = prop), color = "white", size=10)+
-      scale_fill_manual(values = mycols) +
-      theme_void() +
-      theme(text = element_text(size=6),
-            legend.text = element_text(size=10),
-            legend.title = element_text(size=10)) + 
-      xlim(0.5, 2.5)
-    
+      mutate(lab.ypos = cumsum(prop) - 0.5*prop) %>% 
+      ggplot(aes(x = 2, y = prop, fill = corr)) +
+        geom_bar(width = 1, stat = "identity", color = "white") +
+        coord_polar("y", start = 0)+
+        geom_text(aes(y = lab.ypos, label = prop), color = "white", size=10)+
+        scale_fill_manual(values = mycols) +
+        theme_void() +
+        theme(text = element_text(size=6),
+              legend.text = element_text(size=10),
+              legend.title = element_text(size=10)) + 
+        xlim(0.5, 2.5)
+      
   })
   
+  
+  # Plot the number of submissions per days since
+  # the beginning of the game
   
   output$dashSubmissions <- renderPlot({
-    temp <- dbReadTable(con, "bounties") %>% 
+    
+    dbReadTable(con, "bounties") %>% 
       filter(date_stored != "string") %>% 
-      mutate(date = ymd(date_stored))
-    count.data <- ddply(temp, .(date), summarise, prop=length(date))
-    ggplot(count.data, aes(ymd(date), prop)) + 
-      geom_bar(stat = "identity")+
-      xlab("Date") +
-      ylab("Number of stored bounties")
-                  
-                  
+      mutate(date = ymd(date_stored)) %>% 
+      ddply(.(date), summarise, prop=length(date)) %>% 
+      ggplot(aes(ymd(date), prop)) + 
+        geom_bar(stat = "identity", fill="lightgrey")+
+        xlab("Date") +
+        ylab("Number of stored bounties")
+    
   })
   
   
+  # Plot the number of connections to the app per days since
+  # the beginning of the game
   
   output$dashConnections <- renderPlot({
-    temp <- dbReadTable(con, "log") %>% 
+  
+      dbReadTable(con, "log") %>% 
       filter(datetime != "test") %>% 
-      mutate(date = ymd(substr(datetime, 0, 10)))
-    count.data <- ddply(temp, .(date), summarise, prop=length(date))
-    ggplot(count.data, aes(ymd(date), prop)) + 
-      geom_bar(stat = "identity")+
-      xlab("Date") +
-      ylab("Number of connections")
-    
-    
+      mutate(date = ymd(substr(datetime, 0, 10))) %>% 
+      ddply(.(date), summarise, prop=length(date)) %>% 
+      ggplot(aes(ymd(date), prop)) + 
+        geom_bar(stat = "identity", fill="lightgrey")+
+        xlab("Date") +
+        ylab("Number of connections")
     
   })
   
